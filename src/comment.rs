@@ -13,9 +13,9 @@ pub struct Comment {
     pub score: i32,
     ups: Option<i32>,
     downs: Option<i32>,
-    pub created_utc: i64,
+    pub created_utc: i32,
     #[serde(default)]
-    pub retrieved_on: Option<i64>,
+    pub retrieved_on: Option<i32>,
     pub link_id: String,
     pub id: String,
     pub parent_id: String,

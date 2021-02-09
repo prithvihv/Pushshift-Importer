@@ -71,14 +71,14 @@ fn main() {
         .map(|users| users.map(|user| user.to_string()).collect())
         .unwrap_or_else(HashSet::new);
     let sqlite_filename = Path::new(matches.value_of("sqlite-outfile").unwrap());
-    let sqlite = Sqlite::new(sqlite_filename).expect("Error setting up sqlite DB");
+    let mut sqlite = Sqlite::new(sqlite_filename).expect("Error setting up sqlite DB");
     let filter: CommentFilter = CommentFilter { users, subreddits };
     let input_dir = Path::new(matches.value_of("input-dir").unwrap());
     let file_list = get_file_list(input_dir);
-    process(file_list, filter, sqlite);
+    process(file_list, filter,&mut sqlite);
 }
 
-fn process(file_list: Vec<PathBuf>, filter: CommentFilter, db: Sqlite) {
+fn process(file_list: Vec<PathBuf>, filter: CommentFilter, db: &mut Sqlite) {
     let shared_file_list = Arc::new(RwLock::new(file_list));
     let shared_filter = Arc::new(filter);
     let completed = Arc::new(AtomicUsize::new(0));
