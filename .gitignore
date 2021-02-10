@@ -1,2 +1,5 @@
 target/
 .idea/
+
+*.bz2
+valgrind/
