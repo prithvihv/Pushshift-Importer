@@ -83,7 +83,7 @@ fn process(file_list: Vec<PathBuf>, filter: CommentFilter, db: &mut Sqlite) {
     let shared_filter = Arc::new(filter);
     let completed = Arc::new(AtomicUsize::new(0));
     let mut threads = Vec::new();
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = mpsc::sync_channel(100000);
     let num_cpus = num_cpus::get_physical();
     for _i in 0..(num_cpus - 1) {
         let filter_context = FilterContext::new(
@@ -135,7 +135,7 @@ struct FilterContext {
     filter: Arc<CommentFilter>,
     queue: Arc<RwLock<Vec<PathBuf>>>,
     completed: Arc<AtomicUsize>,
-    send_channel: mpsc::Sender<comment::Comment>,
+    send_channel: mpsc::SyncSender<comment::Comment>,
 }
 
 impl FilterContext {
@@ -143,7 +143,7 @@ impl FilterContext {
         filter: Arc<CommentFilter>,
         queue: Arc<RwLock<Vec<PathBuf>>>,
         completed: Arc<AtomicUsize>,
-        send_channel: mpsc::Sender<comment::Comment>,
+        send_channel: mpsc::SyncSender<comment::Comment>,
     ) -> Self {
         FilterContext {
             filter,
@@ -161,7 +161,7 @@ impl FilterContext {
     fn process_queue(&self) {
         while let Some(filename) = self.get_next_file() {
             for comment in
-                iter_comments(filename.as_path()).filter(|comment| self.filter.filter(comment))
+                iter_comments(filename.as_path())
             {
                 self.send_channel.send(comment).unwrap();
             }
