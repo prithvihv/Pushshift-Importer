@@ -8,6 +8,7 @@ mod comment;
 mod decompress;
 mod sqlite;
 
+use core::panic;
 use std::{
     fs,
     io::{self, BufRead, BufReader},
@@ -59,6 +60,14 @@ fn main() {
                 .takes_value(true)
                 .help("Add a subreddit to the subreddit filter"),
         )
+        .arg(
+            Arg::with_name("operation")
+                .long("operation")
+                .required(true)
+                .multiple(false)
+                .takes_value(true)
+                .help("please provide an operation"),
+        )
         .about("Import data from pushshift dump into a Sqlite database. Currently limited to comment data only.\
         Multiple filters can be applied, and if any of the filter criteria match, the comment is included. If no filters are supplied, all comments match; ie the whole dataset will be added to the sqlite file.")
         .get_matches();
@@ -75,10 +84,10 @@ fn main() {
     let filter: CommentFilter = CommentFilter { users, subreddits };
     let input_dir = Path::new(matches.value_of("input-dir").unwrap());
     let file_list = get_file_list(input_dir);
-    process(file_list, filter,&mut sqlite);
+    process(file_list, filter, &mut sqlite, matches.value_of("operation").unwrap());
 }
 
-fn process(file_list: Vec<PathBuf>, filter: CommentFilter, db: &mut Sqlite) {
+fn process(file_list: Vec<PathBuf>, filter: CommentFilter, db: &mut Sqlite, ops: &str) {
     let shared_file_list = Arc::new(RwLock::new(file_list));
     let shared_filter = Arc::new(filter);
     let completed = Arc::new(AtomicUsize::new(0));
@@ -98,23 +107,51 @@ fn process(file_list: Vec<PathBuf>, filter: CommentFilter, db: &mut Sqlite) {
         threads.push(thread);
     }
 
+    let opCode = match ops {
+        "insert" => 1,
+        "update_flair" => 2,
+        _ => 0,
+    };
+
+    if opCode == 0 {
+        panic!("couldn't figure out operation goodbye!")
+    }
+
+    let mut updatedCount = 0;
+    let mut slept = false;
     loop {
         let maybe_comment = rx.try_recv();
         match maybe_comment {
             Ok(comment) => {
-                db.insert_comment(&comment)
-                    .expect("Error inserting comment");
+                slept = true;
+                let count = match opCode {
+                    1 => db
+                        .insert_comment(&comment)
+                        .expect("Error inserting comment"),
+                    2 => db
+                        .update_comment_field_by_reddit_id(&comment)
+                        .expect("Error while updating comment"),
+                    _ => panic!("invalid opCode"),
+                };
+                updatedCount = updatedCount + count
             }
             Err(mpsc::TryRecvError::Disconnected) => {
+                println!("Disconnect?");
                 maybe_comment.unwrap();
             }
-            Err(mpsc::TryRecvError::Empty) => {
+            Err(mpsc) => {
+                slept = true;
                 if completed.load(Ordering::Relaxed) < (num_cpus - 1) {
+                    println!("Sleeping? {}",mpsc);
                     thread::sleep(time::Duration::from_secs(1));
                 } else {
                     break;
                 }
             }
+        }
+    
+        if updatedCount % 1000 == 0 || !slept  {
+            println!("updatedCount {}",updatedCount);
         }
     }
 
@@ -159,11 +196,18 @@ impl FilterContext {
     }
 
     fn process_queue(&self) {
+        let mut readCount = 0;
         while let Some(filename) = self.get_next_file() {
             for comment in
                 iter_comments(filename.as_path())
             {
-                self.send_channel.send(comment).unwrap();
+                if self.filter.filter(&comment) {
+                    self.send_channel.send(comment).unwrap();
+                }
+                readCount += 1;
+                if readCount % 1000 == 0 {
+                    println!("read: {}", readCount);
+                }
             }
         }
         self.completed.fetch_add(1, Ordering::Relaxed);

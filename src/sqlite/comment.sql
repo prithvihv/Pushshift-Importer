@@ -3,7 +3,7 @@ PRAGMA recursive_triggers = ON;
 PRAGMA max_page_count = 4294967292;
 
 -- https://kimsereylam.com/sqlite/2020/03/06/full-text-search-with-sqlite.html
-CREATE UNLOGGED TABLE IF NOT EXISTS comment (id INTEGER PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS comment (id SERIAL,
                                     reddit_id TEXT,
                                     author TEXT,
                                     subreddit TEXT,
@@ -12,12 +12,18 @@ CREATE UNLOGGED TABLE IF NOT EXISTS comment (id INTEGER PRIMARY KEY,
                                     created_utc INTEGER ,
                                     retrieved_on INTEGER,
                                     parent_id TEXT ,
-                                    parent_is_post BOOLEAN ) with (autovacuum_enabled=false);
+                                    parent_is_post BOOLEAN );
+
+DROP TABLE comment;
+
+ALTER TABLE comment
+ADD COLUMN flair INTEGER;
+
+CREATE INDEX idx_comment_reddit_id on comment(reddit_id);
 
 CREATE INDEX IF NOT EXISTS idx_parent_id ON comment (parent_id);
 CREATE INDEX IF NOT EXISTS idx_author ON comment (author);
 CREATE INDEX IF NOT EXISTS idx_subreddit ON comment (subreddit);
-
 
 CREATE VIRTUAL TABLE IF NOT EXISTS comment_fts USING fts5(author, subreddit, body, content = 'comment', content_rowid = 'id');
 
