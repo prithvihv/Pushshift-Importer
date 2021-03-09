@@ -30,7 +30,7 @@ CREATE INDEX idx_author_subreddit_flair_prediction
 on comment(author,subreddit,flair,score);
 
 2. create table form query
-create table ppm_flair_prediction as (select 
+create table pcm_flair_prediction_1 as (select 
     author,
     subreddit,
     flair,
@@ -41,6 +41,7 @@ where author in (
     select distinct(author)
     from comment
     where subreddit = 'PoliticalCompassMemes'
+    and created_utc > 1561153400
 )
 group by author,subreddit,flair) ;
 
@@ -58,7 +59,10 @@ where author in (
     select author
     from 
     (select author,flair, count(*)
-        from ppm_flair_prediction
+        from pcm_flair_prediction_1
+        where subreddit = 'PoliticalCompassMemes'
+        and flair is not null
+        and flair != 0
         group by author, flair) as t1
     group by author
     having count(*) = 1
@@ -68,8 +72,6 @@ where author in (
     group by subreddit
     having count(*) >= 50
 );
-
-
 
 
 -------------- test

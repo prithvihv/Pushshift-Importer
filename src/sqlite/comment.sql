@@ -46,3 +46,14 @@ CREATE TRIGGER  IF NOT EXISTS comment_au AFTER UPDATE ON comment
         INSERT INTO comment_fts (rowid, author, subreddit, body)
         VALUES (new.id, new.author, new.subreddit, new.subreddit);
     END;
+
+CREATE TABLE IF NOT EXISTS posts (id SERIAL,
+                                pid TEXT,
+                                author TEXT,
+                                flair INTEGER,
+                                created_utc INTEGER,
+                                retrieved_on INTEGER,
+                                title TEXT,
+                                url TEXT,
+                                subreddit TEXT,
+                                score INTEGER);
